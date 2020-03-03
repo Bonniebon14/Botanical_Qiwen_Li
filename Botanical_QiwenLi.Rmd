@@ -1,0 +1,518 @@
+---
+title: "Botanical Garden Report"
+author: "Qiwen Li #26020164"
+date: "02/03/2020"
+header-includes:
+   - \usepackage[margin=1in]{geometry}
+   - \usepackage{float}
+output: pdf_document
+---
+
+Qiwenli
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load datasets, message=FALSE}
+data <- read.csv("~/Desktop/Stat 450 Project /AndreaByfuglien_data.csv",header = T, row.names = 1)
+ summary(data)
+```
+
+```{r prepare data (missing data), echo=FALSE}
+#substitute NAs with the median in Age(13), Political(28) and Financial(9)
+data_bot <- data
+data_bot$Age[which(is.na(data$Age))] <- mean(data$Age, na.rm = TRUE)
+data_bot$Political[which(is.na(data$Political))] <- median(data$Political, na.rm = TRUE)
+data_bot$Financial[which(is.na(data$Financial))] <- median(data$Financial, na.rm = TRUE)
+
+# filter data without missing values in Valence(3), Arousal(3) and Gender(3)
+data_bot <- subset(data_bot, !is.na(data_bot$Valence))
+data_bot <- subset(data_bot, !is.na(data_bot$Arousal))
+data_bot <- subset(data_bot, !is.na(data_bot$Gender))
+
+# complete data
+#summary(data_bot)
+
+# data_bot without control group
+data_bot_no_control <- subset(data_bot, data_bot$Condition != 5)
+summary(data_bot_no_control)
+```
+
+```{r load packages, message=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(broom)
+```
+
+## Summary
+Different variables have been related to pro-environmental behaviour, including valence (feeling positive and/or negative emotions), arousal (the state of being physiologically alert and attentive) and educational interventions. 
+
+An experiment was conducted at the UBC Botanical Garden to investigate how valence, arousal and education affect pro-environmental behaviour. 
+
+In this report, we try to explore roles of valence, arousal and education in pro-environmental behaviour. We use linear regression models to model the survey data and hypothesis tests to evaluate these effects.
+
+
+## Introduction
+In this report, we will explore the relationship between arousal, education, valence and Z_Beh_Score (the standardized sum of response variables of donation, newsletters, volunteering and petitions). Arousal, education, valence as explanatory variables, and Z_Beh_Score as a response variable. 
+
+We use linear regression to fit the models, and we use hypothesis tests to determine if the variable has a significant linear relationship.
+
+Moreover, we will remove the control group observations and then analyze walk and education separately; we will keep the control group observations and analyze the condition group; seeing if they give significantly different results.
+
+To further explore, we will add age, gender, political views, and financial status as our explanatory variables, standardized donation, a standardized sum of newsletters and volunteering, standardized petitions, mean of ECO, mean of NEP, and mean of NR as our dependent variables, to fit full models and find the relationship between explanatory variables and dependent variables.
+
+
+## Data Description
+In this report, we will use walk, education, (or condition: the combination of walk and education) and valence as explanatory variables, and Z_Beh_Score as the dependent variable, which is the standardized sum of response variables of donation, newsletters, volunteering and petitions.
+
+For the explanatory variables of walk, there are 85 participants in the control group, 169 participants in the ground walk group, 165 in the tree walk group. 
+
+For the explanatory variables of education, there are 85 participants in the control group, 167 participants in the education group, 165 in the non-education group. 
+
+In the missing values, the number of age (missing 13 values), political views (missing 28 values), and financial status (missing 9 values) are large. Thus, we simply use the median of the rest data to substitute the missing value in the age, political views and financial status.
+
+Also, the number of valence (missing 3 values), arousal (missing 3 values) and gender (missing 3 values) are not much; so we simply filter the participants corresponding to these missing values.
+
+```{r hist1, echo=FALSE}
+par(mfrow=c(2,2))
+hist(data$Z_Beh_Score, main = "Histogram of Std. DNVP", xlab = "Standardized DNVP")
+hist(data$Z_Donate, main = "Histogram of Std. Donate", xlab = "Standardized Donation")
+hist(data$Z_NV, main = "Histogram of Std. NV", xlab = "Standardized NV")
+hist(data$Z_Petition, main = "Histogram of Std. Petition", xlab = "Standardized Petition")
+
+hist(data$ECO_mean, main = "Histogram of ECO's mean ", xlab = "ECO's mean")
+hist(data$NEP_mean, main = "Histogram of NEP's mean ", xlab = "NEP's mean")
+hist(data$NR_mean, main = "Histogram of NR's mean ", xlab = "NR's mean")
+```
+
+In the Figures above, we see that the histograms of the response variables (standardized sum of response variables of donation, newsletters, volunteering and petitions, standardized donation, standardized newsletters and volunteering, standardized petitions, mean of ECO, mean of NEP, and mean of NR) are not bell-shaped.
+
+
+
+
+
+```{r qqplot1, echo=FALSE}
+par(mfrow=c(2,2))
+qqnorm(data$Z_Beh_Score, ylab = "Std. DNVP", xlab = "Standard Normal Quantile")
+qqnorm(data$Z_Donate, ylab = "Std. Donate", xlab = "Standard Normal Quantile")
+qqnorm(data$Z_NV, ylab = "Std. NV", xlab = "Standard Normal Quantile")
+qqnorm(data$Z_Petition, ylab = "Std. Petition", xlab = "Standard Normal Quantile")
+
+qqnorm(data$ECO_mean, main = "Std. ECO's mean ", xlab = "Standard Normal Quantile")
+qqnorm(data$NEP_mean, main = "Std. NEP's mean ", xlab = "Standard Normal Quantile")
+qqnorm(data$NR_mean, main = "Std. NR's mean ", xlab = "Standard Normal Quantile")
+```
+
+Furthermore, in Figures above, we use Q-Q plot to show that the dependent variables (standardized sum of response variables of donation, newsletters, volunteering and petitions, standardized donation, standardized newsletters and volunteering, standardized petitions, mean of ECO, mean of NEP, and mean of NR) are not normally distributed.
+
+
+
+
+
+```{r ArousalWalk, echo=FALSE, fig.align='center', out.width = '80%'}
+ggplot(data_bot, aes(y=Arousal,x=as.factor(Walk))) + geom_boxplot() + xlab("Walk") # + ggtitle("Boxplot of Arousal, grouped by Walk")
+```
+
+As shown in the above figure, different walks will affect the levels of arousal. For the control group, the level of arousal is the lowest; for the tree walk group, the level of arousal is the highest; for the ground walk group, the level of arousal is between the control group and tree walk group.
+
+
+```{r data_bot}
+```
+
+
+
+
+## Methods
+We use linear regression models to analyze the relationship between the dependent variable and explanatory variables.
+
+For the dependent variables, we focus on the Z_Beh_Score (the standardized sum of response variables of donation, newsletters, volunteering, and petitions).  We fit the linear regression model with explanatory variables: walk, education, and valence. 
+
+Meanwhile, we will remove control group observations and analyze walk and education separately; we will keep the control group observations and analyze the condition group; 
+seeing if they give significantly different results.
+
+To further our discussion, we add the mediator measures, including age, gender, political views, and financial status as our explanatory variables; and we add a standardized donation, a standardized sum of newsletters and volunteering, standardized petitions, mean of ECO, mean of NEP, and mean of NR as our dependent variables.
+
+We simply use hypothesis tests to test our linear regression models, that is we test if the coefficients for each dependent variable are significant in the linear regression model. By doing so, we can evaluate the effect of the dependent variables, walk, education, and valence.
+
+
+## Results
+
+```{r lm1 with wev, echo=FALSE}
+# lm model with walk, education and valence with control groups
+lm_wev_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot)
+#summary(lm_wev_Z_Beh_Score)
+```
+
+
+```{r lm2 with cv, echo=FALSE}
+# lm model with condition and valence with control groups
+lm_cv_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Condition)+Valence, data = data_bot)
+#summary(lm_cv_Z_Beh_Score)
+```
+
+
+```{r lm3 with wev no control group, echo=FALSE}
+# lm model with walk, education and valence without control group 
+lm_wev_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot_no_control)
+#summary(lm_wev_Z_Beh_Score)
+```
+
+
+```{r lm4 with cv no control group, echo=FALSE}
+# lm model with condition and valence without control group 
+lm_cv_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Condition)+Valence, data = data_bot_no_control)
+#summary(lm_cv_Z_Beh_Score)
+```
+
+
+```{r lm5 full, echo=FALSE}
+# lm full model we+rest with control group
+lm_full_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_Z_Beh_Score)
+```
+
+
+```{r lm6 full, echo=FALSE}
+# lm full model, condition+rest with control groups 
+lm_full_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_Z_Beh_Score)
+```
+
+
+```{r lm7 full, echo=FALSE}
+# lm full model we+rest without control group
+lm_full_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_Z_Beh_Score)
+```
+
+
+```{r lm8 full, echo=FALSE}
+# lm full model condition+rest without control group
+lm_full_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_Z_Beh_Score)
+```
+
+
+
+We fitted four models for explanatory variables which are walk, education (or condition) and valence with the control group or without the control group. 
+
+1. For the linear regression model for three explanatory variables which are walk, education, and valence with the control group, valence is significant, the residual standard error is 1.731, and the adjusted R-squared is 0.01307. All the values of non-education are NA.
+
+2. For the linear regression model for two explanatory variables which are condition and valence with the control group, valence is significant, the residual standard error is 1.733, and the adjusted R-squared is 0.01079.
+
+3. For the linear regression model for three explanatory variables which are walk, education, and valence without the control group, valence is significant, the residual standard error is 1.728, and the adjusted R-squared is 0.002195.
+
+4. For the linear regression model for two explanatory variables which are condition and valence without the control group, valence is significant, the residual standard error is 1.731, and the adjusted R-squared is -0.0006652. 
+
+5. For the full linear regression model for walk, education and the rest of explanatory variables with the control group, valence and political are significant, the residual standard error is 1.715, and the adjusted R-squared is 0.03047. All the values of non-education are NA.
+
+6. For the full linear regression model for condition and the rest of explanatory variables with the control group, valence and political are significant, the residual standard error is 1.717, and the adjusted R-squared is 0.02807.
+
+7. For the full linear regression model for walk, education and the rest of explanatory variables without the control group, political is significant, the residual standard error is 1.713, and the adjusted R-squared is 0.02013.
+
+8. For the full linear regression model for condition and the rest of the explanatory variables without the control group, political is significant, the residual standard error is 1.715, and the adjusted R-squared is 0.01708.
+
+We can find that in the full linear regression model, political is a significant explanatory variable for Z_Beh_Score.
+
+
+```{r full-BEH, echo=FALSE}
+#1 
+tidy(lm_wev_Z_Beh_Score) %>% knitr::kable(caption = "Linear Regression Model")
+tidy(anova(lm_wev_Z_Beh_Score))%>% 
+  knitr::kable(caption = "ANOVA for Linear Regression Model")
+
+#2
+# tidy(lm_cv_Z_Beh_Score)%>% 
+#   knitr::kable(caption = "Linear Regression Model")
+# tidy(anova(lm_cv_Z_Beh_Score))%>% 
+#   knitr::kable(caption = "ANOVA for Linear Regression Model")
+
+#3
+tidy(lm_wev_Z_Beh_Score)%>% 
+   knitr::kable(caption = "Linear Regression Model")
+# tidy(anova(lm_wev_Z_Beh_Score))%>% 
+#   knitr::kable(caption = "ANOVA for Linear Regression Model")
+
+#4
+# tidy(lm_cv_Z_Beh_Score)%>%
+#  knitr::kable(caption = "Linear Regression Model")
+# tidy(anova(lm_cv_Z_Beh_Score))%>% 
+#   knitr::kable(caption = "ANOVA for Linear Regression Model")
+
+#5
+tidy(lm_full_Z_Beh_Score)%>% 
+   knitr::kable(caption = "Linear Regression Model")
+tidy(anova(lm_full_Z_Beh_Score))%>% 
+  knitr::kable(caption = "ANOVA for Linear Regression Model")
+
+#6
+tidy(lm_full_Z_Beh_Score)%>% 
+   knitr::kable(caption = "Linear Regression Model")
+# tidy(anova(lm_full_Z_Beh_Score))%>% 
+#   knitr::kable(caption = "ANOVA for Linear Regression Model")
+
+#7
+tidy(lm_full_Z_Beh_Score)%>%
+  knitr::kable(caption = "Linear Regression Model")
+# tidy(anova(lm_full_Z_Beh_Score))%>% 
+#   knitr::kable(caption = "ANOVA for Linear Regression Model")
+
+#8
+tidy(lm_full_Z_Beh_Score)%>% 
+   knitr::kable(caption = "Linear Regression Model")
+# tidy(anova(lm_full_Z_Beh_Score))%>% 
+#   knitr::kable(caption = "ANOVA for Linear Regression Model")
+```
+
+
+
+
+
+We have the linear regression model using a standardized sum of response variables of donation, newsletters, volunteering and petitions as our dependent variable, and condition, valence, age, gender, political, financial as our explanatory variables. 
+
+
+
+
+
+#### From Table 1-3
+Table 1-2: the linear regression model for two explanatory variables which are condition and valence without the control group
+
+Table 3: the linear regression model for three explanatory variables which are walk, education and valence without the control group
+
+If we choose our significant level 0.05, the only p-values for valence are smaller than the significant level.
+Since we have the condition as a categorical variable, we can then perform the ANOVA test on this linear regression model. Based on the result of the ANOVA, the only valence shows a significant linear relationship to the standardized Beh_Score in our models. The estimated coefficient for valence is positive, which means that the valence has a positive linear relationship to the dependent variable.
+
+
+
+
+
+#### From Table 4-8
+Table 4-5: the linear regression model for three explanatory variables which are walk, education and valence with the control group;
+
+Table 6: the linear regression model for two explanatory variables which are condition and valence with the control group
+
+Table 7: the linear regression model for three explanatory variables which are walk, education and valence without the control group
+
+Table 8: the linear regression model for two explanatory variables which are condition and valence without the control group
+
+If we choose our significant level 0.05, the only p-values for political are smaller than the significant level.
+
+Since we have the condition as a categorical variable, we can then perform the ANOVA test on this linear regression model. Based on the result of the ANOVA, only political shows a significant linear relationship to the standardized Beh_Score in our models. The estimated coefficient for political is negative, which means that the political has a negative linear relationship to the dependent variable.
+
+
+
+## Conclusions
+In the reduced linear regression model with explanatory variables which are walk, education, and valence, valence is a significant explanatory variable for Z_Beh_Score. Valence shows a positive effect on motivating people to take action on climate change and sustainable development.
+
+In the full linear regression model with explanatory variables which are walk, education and valence age, gender, political views and financial status, political is a significant explanatory variable for Z_Beh_Score. Political shows a positive effect on motivating people to take action on climate change and sustainable development.
+
+
+
+```{r further coding, echo=FALSE}
+```
+
+```{r lm1, echo=FALSE}
+# lm model with walk, education and valence with control groups
+lm_wev_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot)
+summary(lm_wev_Z_Beh_Score)
+
+lm_wev_Donate <- lm(Z_Donate ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot)
+#summary(lm_wev_Donate)
+
+lm_wev_NV <- lm(Z_NV ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot)
+#summary(lm_wev_NV)
+
+lm_wev_Petition <- lm(Z_Petition ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot)
+#summary(lm_wev_Petition)
+
+lm_wev_ECO <- lm(ECO_mean ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot)
+summary(lm_wev_ECO)
+
+lm_wev_NEP <- lm(NEP_mean ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot)
+#summary(lm_wev_NEP)
+
+lm_wev_NR <- lm(NR_mean ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot)
+#summary(lm_wev_NR)
+```
+
+```{r lm2, echo=FALSE}
+# lm model with condition and valence with control groups
+lm_cv_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Condition)+Valence, data = data_bot)
+#summary(lm_cv_Z_Beh_Score)
+
+lm_cv_Donate <- lm(Z_Donate ~ as.factor(Condition)+Valence, data = data_bot)
+#summary(lm_cv_Donate)
+
+lm_cv_NV <- lm(Z_NV ~ as.factor(Condition)+Valence, data = data_bot)
+#summary(lm_cv_NV)
+
+lm_cv_Petition <- lm(Z_Petition ~ as.factor(Condition)+Valence, data = data_bot)
+#summary(lm_cv_Petition)
+
+lm_cv_ECO <- lm(ECO_mean ~ as.factor(Condition)+Valence, data = data_bot)
+#summary(lm_cv_ECO)
+
+lm_cv_NEP <- lm(NEP_mean ~ as.factor(Condition)+Valence, data = data_bot)
+#summary(lm_cv_NEP)
+
+lm_cv_NR <- lm(NR_mean ~ as.factor(Condition)+Valence, data = data_bot)
+#summary(lm_cv_NR)
+```
+
+```{r lm3, echo=FALSE}
+# lm model with walk, education and valence without control group 
+lm_wev_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot_no_control)
+summary(lm_wev_Z_Beh_Score)
+
+lm_wev_Donate <- lm(Z_Donate ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot_no_control)
+#summary(lm_wev_Donate)
+
+lm_wev_NV <- lm(Z_NV ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot_no_control)
+#summary(lm_wev_NV)
+
+lm_wev_Petition <- lm(Z_Petition ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot_no_control)
+#summary(lm_wev_Petition)
+
+lm_wev_ECO <- lm(ECO_mean ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot_no_control)
+#summary(lm_wev_ECO)
+
+lm_wev_NEP <- lm(NEP_mean ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot_no_control)
+#summary(lm_wev_NEP)
+
+lm_wev_NR <- lm(NR_mean ~ as.factor(Walk)+as.factor(Education)+Valence, data = data_bot_no_control)
+#summary(lm_wev_NR)
+```
+
+```{r lm4, echo=FALSE}
+# lm model with condition and valence without control group 
+lm_cv_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Condition)+Valence, data = data_bot_no_control)
+#summary(lm_cv_Z_Beh_Score)
+
+lm_cv_Donate <- lm(Z_Donate ~ as.factor(Condition)+Valence, data = data_bot_no_control)
+#summary(lm_cv_Donate)
+
+lm_cv_NV <- lm(Z_NV ~ as.factor(Condition)+Valence, data = data_bot_no_control)
+#summary(lm_cv_NV)
+
+lm_cv_Petition <- lm(Z_Petition ~ as.factor(Condition)+Valence, data = data_bot_no_control)
+#summary(lm_cv_Petition)
+
+lm_cv_ECO <- lm(ECO_mean ~ as.factor(Condition)+Valence, data = data_bot_no_control)
+#summary(lm_cv_ECO)
+
+lm_cv_NEP <- lm(NEP_mean ~ as.factor(Condition)+Valence, data = data_bot_no_control)
+#summary(lm_cv_NEP)
+
+lm_cv_NR <- lm(NR_mean ~ as.factor(Condition)+Valence, data = data_bot_no_control)
+#summary(lm_cv_NR)
+```
+
+
+
+```{r lm5, echo=FALSE}
+# lm full model we+rest with control group
+lm_full_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_Z_Beh_Score)
+
+lm_full_Donate <- lm(Z_Donate ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_Donate)
+
+lm_full_NV <- lm(Z_NV ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_NV)
+
+lm_full_Petition <- lm(Z_Petition ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_Petition)
+
+lm_full_ECO <- lm(ECO_mean ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_ECO)
+
+lm_full_NEP <- lm(NEP_mean ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_NEP)
+
+lm_full_NR <- lm(NR_mean ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_NR)
+```
+
+```{r lm6, echo=FALSE}
+# lm full model, condition+rest with control groups 
+lm_full_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_Z_Beh_Score)
+
+lm_full_Donate <- lm(Z_Donate ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_Donate)
+
+lm_full_NV <- lm(Z_NV ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_NV)
+
+lm_full_Petition <- lm(Z_Petition ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_Petition)
+
+lm_full_ECO <- lm(ECO_mean ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_ECO)
+
+lm_full_NEP <- lm(NEP_mean ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_NEP)
+
+lm_full_NR <- lm(NR_mean ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot)
+#summary(lm_full_NR)
+```
+
+
+```{r lm7, echo=FALSE}
+# lm full model we+rest without control group
+lm_full_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_Z_Beh_Score)
+
+lm_full_Donate <- lm(Z_Donate ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_Donate)
+
+lm_full_NV <- lm(Z_NV ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_NV)
+
+lm_full_Petition <- lm(Z_Petition ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_Petition)
+
+lm_full_ECO <- lm(ECO_mean ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_ECO)
+
+lm_full_NEP <- lm(NEP_mean ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_NEP)
+
+lm_full_NR <- lm(NR_mean ~ as.factor(Walk)+as.factor(Education)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_NR)
+```
+
+
+```{r lm8, echo=FALSE}
+# lm full model condition+rest without control group
+lm_full_Z_Beh_Score <- lm(Z_Beh_Score ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_Z_Beh_Score)
+
+lm_full_Donate <- lm(Z_Donate ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_Donate)
+
+lm_full_NV <- lm(Z_NV ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_NV)
+
+lm_full_Petition <- lm(Z_Petition ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_Petition)
+
+lm_full_ECO <- lm(ECO_mean ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_ECO)
+
+lm_full_NEP <- lm(NEP_mean ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+#summary(lm_full_NEP)
+
+lm_full_NR <- lm(NR_mean ~ as.factor(Condition)+Valence+Age+Gender+Political+Financial, data = data_bot_no_control)
+summary(lm_full_NR)
+```
+
+
+```{r fig1, echo=FALSE, fig.cap="Histogram of Standardized Donation, Newsletter,Volunteering and Petition", fig.align='center', out.width = '50%'}
+# hist(data$Z_Beh_Score, xlab = "Standardized Donation, Newsletter,Volunteering & Petition")
+```
+
+```{r fig2, echo=FALSE, fig.cap="Normal QQ Plot of Standardized Donation, Newsletter,Volunteering and Petition", fig.align='center', out.width = '50%'}
+# qqnorm(data$Z_Beh_Score, ylab = "Z_Beh_Score", xlab = "Standard Normal Quantile")
+```
